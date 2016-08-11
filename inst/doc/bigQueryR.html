@@ -12,7 +12,7 @@
 
 <meta name="author" content="Mark Edmondson" />
 
-<meta name="date" content="2016-06-13" />
+<meta name="date" content="2016-08-11" />
 
 <title>bigQueryR</title>
 
@@ -70,7 +70,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">bigQueryR</h1>
 <h4 class="author"><em>Mark Edmondson</em></h4>
-<h4 class="date"><em>2016-06-13</em></h4>
+<h4 class="date"><em>2016-08-11</em></h4>
 
 
 
@@ -153,7 +153,7 @@ job &lt;-<span class="st"> </span><span class="kw">bqr_query_asynch</span>(<span
 
 ##once done, the query results are in &quot;bigResultTable&quot;</code></pre></div>
 <p>You may now want to download this data. For large datasets, this is best done via extracting the BigQuery result to Google Cloud Storage, then downloading the data from there.</p>
-<p>You can create a bucket at Google Cloud Storage see <a href="https://cloud.google.com/storage/docs/cloud-console" class="uri">https://cloud.google.com/storage/docs/cloud-console</a>, or you can use <a href="https://github.com/MarkEdmondson1234/googleCloudStorageR">library(googleCloudStorageR)</a></p>
+<p>You can create a bucket at Google Cloud Storage see <a href="https://cloud.google.com/storage/docs/cloud-console" class="uri">https://cloud.google.com/storage/docs/cloud-console</a>, or you can use <a href="https://github.com/cloudyr/googleCloudStorageR">library(googleCloudStorageR)</a></p>
 <p>Once created, you can extract your data via the below:</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## Create the data extract from BigQuery to Cloud Storage
 job_extract &lt;-<span class="st"> </span><span class="kw">bqr_extract_data</span>(<span class="st">&quot;your_project&quot;</span>,
