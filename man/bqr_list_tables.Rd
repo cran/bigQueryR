@@ -4,12 +4,15 @@
 \alias{bqr_list_tables}
 \title{List BigQuery tables in a dataset}
 \usage{
-bqr_list_tables(projectId, datasetId)
+bqr_list_tables(projectId = bq_get_global_project(),
+  datasetId = bq_get_global_dataset(), maxResults = 1000)
 }
 \arguments{
 \item{projectId}{The BigQuery project ID}
 
 \item{datasetId}{A datasetId within projectId}
+
+\item{maxResults}{Number of results to return, default \code{1000}}
 }
 \value{
 dataframe of tables in dataset
@@ -25,12 +28,10 @@ List BigQuery tables in a dataset
 
 }
 \seealso{
-Other bigQuery meta functions: \code{\link{bqr_auth}},
-  \code{\link{bqr_create_table}},
+Other bigQuery meta functions: \code{\link{bqr_create_table}},
   \code{\link{bqr_delete_table}},
   \code{\link{bqr_list_datasets}},
   \code{\link{bqr_list_projects}},
   \code{\link{bqr_table_data}},
   \code{\link{bqr_table_meta}}
 }
-

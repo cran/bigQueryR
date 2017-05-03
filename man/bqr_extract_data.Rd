@@ -4,7 +4,8 @@
 \alias{bqr_extract_data}
 \title{Extract data asynchronously}
 \usage{
-bqr_extract_data(projectId, datasetId, tableId, cloudStorageBucket,
+bqr_extract_data(projectId = bq_get_global_project(),
+  datasetId = bq_get_global_dataset(), tableId, cloudStorageBucket,
   filename = paste0("big-query-extract-", gsub(" |:|-", "", Sys.time()),
   "-*.csv"), compression = c("NONE", "GZIP"), destinationFormat = c("CSV",
   "NEWLINE_DELIMITED_JSON", "AVRO"), fieldDelimiter = ",",
@@ -52,7 +53,7 @@ job <- bqr_query_asynch("your_project",
                         
 ## poll the job to check its status
 ## its done when job$status$state == "DONE"
-bqr_get_job("your_project", job$jobReference$jobId)
+bqr_get_job("your_project", job)
 
 ##once done, the query results are in "bigResultTable"
 ## extract that table to GoogleCloudStorage:
@@ -68,12 +69,14 @@ job_extract <- bqr_extract_data("your_project",
 ## its done when job$status$state == "DONE"
 bqr_get_job("your_project", job_extract$jobReference$jobId)
 
+You should also see the extract in the Google Cloud Storage bucket
+googleCloudStorageR::gcs_list_objects("your_cloud_storage_bucket_name")
+
 ## to download via a URL and not logging in via Google Cloud Storage interface:
 ## Use an email that is Google account enabled
 ## Requires scopes:
 ##  https://www.googleapis.com/auth/devstorage.full_control
 ##  https://www.googleapis.com/auth/cloud-platform
-## set via options("bigQueryR.scopes") and reauthenticate if needed
 
 download_url <- bqr_grant_extract_access(job_extract, "your@email.com")
 
@@ -91,4 +94,3 @@ Other BigQuery asynch query functions: \code{\link{bqr_download_extract}},
   \code{\link{bqr_query_asynch}},
   \code{\link{bqr_wait_for_job}}
 }
-

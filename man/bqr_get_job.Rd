@@ -4,7 +4,7 @@
 \alias{bqr_get_job}
 \title{Poll a jobId}
 \usage{
-bqr_get_job(projectId, jobId)
+bqr_get_job(projectId = bq_get_global_project(), jobId)
 }
 \arguments{
 \item{projectId}{projectId of job}
@@ -73,4 +73,3 @@ Other BigQuery asynch query functions: \code{\link{bqr_download_extract}},
   \code{\link{bqr_query_asynch}},
   \code{\link{bqr_wait_for_job}}
 }
-

@@ -4,7 +4,8 @@
 \alias{bqr_table_meta}
 \title{Get BigQuery Table meta data}
 \usage{
-bqr_table_meta(projectId, datasetId, tableId)
+bqr_table_meta(projectId = bq_get_global_project(),
+  datasetId = bq_get_global_dataset(), tableId)
 }
 \arguments{
 \item{projectId}{The BigQuery project ID}
@@ -28,12 +29,10 @@ Get BigQuery Table meta data
 
 }
 \seealso{
-Other bigQuery meta functions: \code{\link{bqr_auth}},
-  \code{\link{bqr_create_table}},
+Other bigQuery meta functions: \code{\link{bqr_create_table}},
   \code{\link{bqr_delete_table}},
   \code{\link{bqr_list_datasets}},
   \code{\link{bqr_list_projects}},
   \code{\link{bqr_list_tables}},
   \code{\link{bqr_table_data}}
 }
-

@@ -28,9 +28,9 @@
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_list_datasets <- function(projectId){
+bqr_list_datasets <- function(projectId = bq_get_global_project()){
   
-  
+  check_bq_auth()
   l <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
                                       "GET",
                                       path_args = list(projects = projectId,
@@ -80,7 +80,7 @@ bqr_list_datasets <- function(projectId){
 #' @family bigQuery meta functions
 #' @export
 bqr_list_projects <- function(){
-  
+  check_bq_auth()
   l <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2/projects",
                                       "GET",
                                       data_parse_function = function(x) {

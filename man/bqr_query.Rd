@@ -4,7 +4,9 @@
 \alias{bqr_query}
 \title{Query a BigQuery Table}
 \usage{
-bqr_query(projectId, datasetId, query, maxResults = 1000)
+bqr_query(projectId = bq_get_global_project(),
+  datasetId = bq_get_global_dataset(), query, maxResults = 1000,
+  useLegacySql = TRUE, useQueryCache = TRUE)
 }
 \arguments{
 \item{projectId}{The BigQuery project ID}
@@ -14,6 +16,10 @@ bqr_query(projectId, datasetId, query, maxResults = 1000)
 \item{query}{BigQuery SQL}
 
 \item{maxResults}{Max number per page of results. Set total rows with LIMIT in your query.}
+
+\item{useLegacySql}{Whether the query you pass is legacy SQL or not. Default TRUE}
+
+\item{useQueryCache}{Whether to use the query cache. Default TRUE, set to FALSE for realtime queries.}
 }
 \value{
 a data.frame. 
@@ -36,4 +42,6 @@ bqr_query("big-query-r","samples",
 }
 
 }
-
+\seealso{
+\href{https://cloud.google.com/bigquery/sql-reference/}{BigQuery SQL reference}
+}

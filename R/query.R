@@ -4,6 +4,8 @@
 #' @param datasetId A datasetId within projectId
 #' @param query BigQuery SQL
 #' @param maxResults Max number per page of results. Set total rows with LIMIT in your query.
+#' @param useLegacySql Whether the query you pass is legacy SQL or not. Default TRUE
+#' @param useQueryCache Whether to use the query cache. Default TRUE, set to FALSE for realtime queries. 
 #' 
 #' @return a data.frame. 
 #'   If there is an SQL error, a data.frame with 
@@ -14,6 +16,8 @@
 #'   MaxResults is how many results to return per page of results, which can be less than the 
 #' total results you have set in your  query using LIMIT.  Google recommends for bigger datasets
 #' to set maxResults = 1000, but this will use more API calls.
+#' 
+#' @seealso \href{https://cloud.google.com/bigquery/sql-reference/}{BigQuery SQL reference}
 #' 
 #' @examples 
 #' 
@@ -26,8 +30,13 @@
 #' 
 #' @family BigQuery query functions
 #' @export
-bqr_query <- function(projectId, datasetId, query, maxResults = 1000){
-  
+bqr_query <- function(projectId = bq_get_global_project(), 
+                      datasetId = bq_get_global_dataset(), 
+                      query, 
+                      maxResults = 1000, 
+                      useLegacySql = TRUE, 
+                      useQueryCache = TRUE){
+  check_bq_auth()
   maxResults <- as.numeric(maxResults)
   if(maxResults > 100000) warning("bqr_query() is not suited to extract large amount of data from BigQuery. Consider using bqr_query_asynch() and bqr_extract_data() instead")
   
@@ -35,6 +44,8 @@ bqr_query <- function(projectId, datasetId, query, maxResults = 1000){
     kind = "bigquery#queryRequest",
     query = query,
     maxResults = maxResults,
+    useLegacySql = useLegacySql,
+    useQueryCache = useQueryCache,
     defaultDataset = list(
       datasetId = datasetId,
       projectId = projectId
@@ -94,6 +105,7 @@ bqr_query <- function(projectId, datasetId, query, maxResults = 1000){
 #' @param query The BigQuery query as a string.
 #' @param destinationTableId Id of table the results will be written to.
 #' @param writeDisposition Behaviour if destination table exists. See Details.
+#' @param useLegacySql Whether the query you pass is legacy SQL or not. Default TRUE
 #' 
 #' @details 
 #' 
@@ -165,15 +177,16 @@ bqr_query <- function(projectId, datasetId, query, maxResults = 1000){
 #'
 #' @family BigQuery asynch query functions  
 #' @export
-bqr_query_asynch <- function(projectId, 
-                             datasetId, 
+bqr_query_asynch <- function(projectId = bq_get_global_project(), 
+                             datasetId = bq_get_global_dataset(), 
                              query, 
                              destinationTableId,
+                             useLegacySql = TRUE,
                              writeDisposition = c("WRITE_EMPTY",
                                                   "WRITE_TRUNCATE",
                                                   "WRITE_APPEND")){
   
-
+  check_bq_auth()
   ## make job
   job <- 
     googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
@@ -200,6 +213,7 @@ bqr_query_asynch <- function(projectId,
           tableId = destinationTableId
         ),
         query = query,
+        useLegacySql = useLegacySql,
         writeDisposition = writeDisposition
       )
     )
@@ -218,6 +232,6 @@ bqr_query_asynch <- function(projectId,
     # out <- FALSE
   }
   
-  out
+  as.job(out)
   
 }

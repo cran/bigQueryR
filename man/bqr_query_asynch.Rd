@@ -4,8 +4,10 @@
 \alias{bqr_query_asynch}
 \title{BigQuery query asynchronously}
 \usage{
-bqr_query_asynch(projectId, datasetId, query, destinationTableId,
-  writeDisposition = c("WRITE_EMPTY", "WRITE_TRUNCATE", "WRITE_APPEND"))
+bqr_query_asynch(projectId = bq_get_global_project(),
+  datasetId = bq_get_global_dataset(), query, destinationTableId,
+  useLegacySql = TRUE, writeDisposition = c("WRITE_EMPTY", "WRITE_TRUNCATE",
+  "WRITE_APPEND"))
 }
 \arguments{
 \item{projectId}{projectId to be billed.}
@@ -15,6 +17,8 @@ bqr_query_asynch(projectId, datasetId, query, destinationTableId,
 \item{query}{The BigQuery query as a string.}
 
 \item{destinationTableId}{Id of table the results will be written to.}
+
+\item{useLegacySql}{Whether the query you pass is legacy SQL or not. Default TRUE}
 
 \item{writeDisposition}{Behaviour if destination table exists. See Details.}
 }
@@ -96,4 +100,3 @@ Other BigQuery asynch query functions: \code{\link{bqr_download_extract}},
   \code{\link{bqr_grant_extract_access}},
   \code{\link{bqr_wait_for_job}}
 }
-

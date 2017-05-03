@@ -3,11 +3,13 @@
 #' @param projectId The BigQuery project ID.
 #' @param datasetId A datasetId within projectId.
 #' @param tableId ID of table where data will end up.
-#' @param upload_data The data to upload, a data.fame.
-#' @param create If TRUE will create the table if it isn't present.
+#' @param upload_data The data to upload, a data.frame object or a Google Cloud Storage URI
+#' @param create Whether to create a new table if necessary, or error if it already exists.
 #' @param overwrite If TRUE will delete any existing table and upload new data.
-#' @param uploadType 'multipart' for small data, 
-#'   'resumable' for big. (not implemented yet)
+#' @param schema If \code{upload_data} is a Google Cloud Storage URI, supply the data schema.  For \code{CSV} a helper function is available by using \link{schema_fields} on a data sample
+#' @param sourceFormat If \code{upload_data} is a Google Cloud Storage URI, supply the data format.  Default is \code{CSV}
+#' @param wait If uploading a data.frame, whether to wait for it to upload before returning
+#' @param autodetect Experimental feature that auto-detects schema for CSV and JSON files
 #' 
 #' @return TRUE if successful, FALSE if not. 
 #' 
@@ -15,19 +17,77 @@
 #' 
 #' @details 
 #' 
-#' A temporary csv file is created when uploading. 
+#' A temporary csv file is created when uploading from a local data.frame
+#' 
+#' For larger file sizes up to 5TB, upload to Google Cloud Storage first via \link[googleCloudStorageR]{gcs_upload} then supply the object URI of the form \code{gs://project-name/object-name} to the \code{upload_data} argument.  
+#'   
+#' You also need to supply a data schema.  Remember that the file should not have a header row.
+#'   
+#' @examples 
+#' 
+#' \dontrun{
+#' 
+#'  library(googleCloudStorageR)
+#'  library(bigQueryR)
+#'  
+#'  gcs_global_bucket("your-project")
+#'  
+#'  ## custom upload function to ignore quotes and column headers
+#'  f <- function(input, output) {
+#'    write.table(input, sep = ",", col.names = FALSE, row.names = FALSE, 
+#'                quote = FALSE, file = output, qmethod = "double")}
+#'    
+#'  ## upload files to Google Cloud Storage
+#'  gcs_upload(mtcars, name = "mtcars_test1.csv", object_function = f)
+#'  gcs_upload(mtcars, name = "mtcars_test2.csv", object_function = f)
+#'  
+#'  ## create the schema of the files you just uploaded
+#'  user_schema <- schema_fields(mtcars)
+#'  
+#'  ## load files from Google Cloud Storage into BigQuery
+#'  bqr_upload_data(projectId = "your-project", 
+#'                 datasetId = "test", 
+#'                 tableId = "from_gcs_mtcars", 
+#'                 upload_data = c("gs://your-project/mtcars_test1.csv", 
+#'                                 "gs://your-project/mtcars_test2.csv"),
+#'                 schema = user_schema)
+#' 
+#' 
+#' 
+#' }
 #' 
 #' @family bigQuery upload functions
 #' @export
-bqr_upload_data <- function(projectId, 
-                            datasetId, 
+bqr_upload_data <- function(projectId = bq_get_global_project(), 
+                            datasetId = bq_get_global_dataset(), 
                             tableId, 
                             upload_data, 
-                            create = TRUE,
+                            create = c("CREATE_IF_NEEDED", "CREATE_NEVER"),
                             overwrite = FALSE,
-                            uploadType = c("multipart","resumable")){
+                            schema = NULL,
+                            sourceFormat = c("CSV", "DATASTORE_BACKUP", "NEWLINE_DELIMITED_JSON","AVRO"),
+                            wait = TRUE,
+                            autodetect = FALSE){
   
-  stopifnot(inherits(upload_data, "data.frame"))
+
+  assertthat::assert_that(is.character(projectId),
+                          is.character(datasetId),
+                          is.character(tableId),
+                          is.logical(overwrite),
+                          is.logical(wait))
+  sourceFormat <- match.arg(sourceFormat)
+  create <- match.arg(create)
+  
+  if(inherits(upload_data, "data.frame")){
+    myMessage("Uploading local data.frame", level = 3)
+  } else if(inherits(upload_data, "character")){
+    myMessage("Uploading from Google Cloud Storage URI", level = 3)
+    stopifnot(all(grepl("^gs://", upload_data)))
+    
+    if(is.null(schema) && !autodetect){
+      stop("Must supply a data schema or use autodetect if loading from Google Cloud Storage - see ?schema_fields")
+    }
+  }
   
   if(overwrite){
     deleted <- bqr_delete_table(projectId = projectId,
@@ -37,19 +97,48 @@ bqr_upload_data <- function(projectId,
     if(!deleted) stop("Couldn't delete table")
   }
   
-  if(create){
-    creation <- bqr_create_table(projectId = projectId,
-                                 datasetId = datasetId,
-                                 tableId = tableId,
-                                 template_data = upload_data)
-    
-    if(!creation) stop("Can't upload: Table already exisits.")
-  }
+  bqr_do_upload(upload_data = upload_data, 
+                projectId = projectId,
+                datasetId = datasetId,
+                tableId = tableId,
+                create = create,
+                user_schema = schema,
+                sourceFormat = sourceFormat,
+                wait = wait,
+                autodetect = autodetect)
+  
+}
+
+# S3 generic dispatch
+bqr_do_upload <- function(upload_data, 
+                          projectId, 
+                          datasetId, 
+                          tableId,
+                          create,
+                          user_schema,
+                          sourceFormat,
+                          wait,
+                          autodetect){
+  check_bq_auth()
+  UseMethod("bqr_do_upload", upload_data)
+}
+
+# upload for local data.fram
+bqr_do_upload.data.frame <- function(upload_data, 
+                                     projectId, 
+                                     datasetId, 
+                                     tableId,
+                                     create,
+                                     user_schema, # not used
+                                     sourceFormat, # not used
+                                     wait,
+                                     autodetect){ 
   
   config <- list(
     configuration = list(
       load = list(
         sourceFormat = "CSV",
+        createDisposition = jsonlite::unbox(create),
         schema = list(
           fields = schema_fields(upload_data)
         ),
@@ -57,7 +146,8 @@ bqr_upload_data <- function(projectId,
           projectId = projectId,
           datasetId = datasetId,
           tableId = tableId
-        )
+        ),
+        autodetect = autodetect
       )
     )
   )
@@ -93,31 +183,112 @@ bqr_upload_data <- function(projectId,
                                    customConfig = list(
                                      httr::add_headers("Content-Type" = "multipart/related; boundary=bqr_upload"),
                                      httr::add_headers("Content-Length" = nchar(mp_body, type = "bytes"))
-                                     )
                                    )
-   
+    )
+  
   req <- l(path_arguments = list(projects = projectId, 
                           datasets = datasetId,
                           tableId = tableId),
     the_body = mp_body)
   
-  if(req$status_code == 200){
-    message("Upload request successful")
-    out <- TRUE
+  if(!is.null(req$content$status$errorResult)){
+    stop("Error in upload job: ", req$status$errors$message)
   } else {
-#     warning("Error in upload: ", req$status_code, " Returning request for debugging ")
-#     out <- req
+    myMessage("Upload job made...", level = 3)
+  }
+  
+  if(req$status_code == 200){
+    
+    if(req$content$kind == "bigquery#job"){
+      if(wait){
+        out <- bqr_wait_for_job(as.job(req$content))
+      } else {
+        myMessage("Returning: BigQuery load of local data.frame Job object: ", req$content$jobReference$jobId, level = 3)
+        out <- bqr_get_job(req$content$jobReference$jobId, projectId = req$content$jobReference$projectId)
+      }
+
+    } else {
+      stop("Upload table didn't return bqr_job object when it should have.")
+    }
+    
+  } else {
+    myMessage("Error in upload, returning FALSE", level = 3)
     out <- FALSE
   }
   
   out
-  
 }
 
+# upload for gs:// character vector
+bqr_do_upload.character <- function(upload_data, 
+                                    projectId, 
+                                    datasetId, 
+                                    tableId,
+                                    create,
+                                    user_schema,
+                                    sourceFormat,
+                                    wait, # not used
+                                    autodetect){
+  
+  if(length(upload_data) > 1){
+    source_uri <- upload_data
+  } else {
+    source_uri <- list(upload_data)
+  }
+  
+  config <- list(
+    configuration = list(
+      load = list(
+        sourceFormat = sourceFormat,
+        createDisposition = jsonlite::unbox(create),
+        sourceUris = source_uri,
+        schema = list(
+          fields = user_schema
+        ),
+        destinationTable = list(
+          projectId = projectId,
+          datasetId = datasetId,
+          tableId = tableId
+        ),
+        autodetect = autodetect
+      )
+    )
+  )
+  
+  
+  l <- 
+    googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
+                                   "POST",
+                                   path_args = list(projects = projectId,
+                                                    jobs = "")
+                                   )
+  
+  req <- l(path_arguments = list(projects = projectId, 
+                          datasets = datasetId,
+                          tableId = tableId),
+    the_body = config)
+  
+  myMessage("Returning: BigQuery load from Google Cloud Storage Job object: ", req$content$jobReference$jobId, level = 3)
+  
+  bqr_get_job(req$content$jobReference$jobId, projectId = req$content$jobReference$projectId)
 
-## From bigrquery
-## https://github.com/rstats-db/bigrquery/blob/master/R/upload.r 
-schema_fields <- function(data) {
+}
+
+#' Create data schema for upload to BigQuery
+#' 
+#' Use this on a sample of the data you want to load from Google Cloud Storage
+#' 
+#' @param data An example of the data to create a schema from
+#' 
+#' @return A schema object suitable to pass within the \code{schema} argument of \link{bqr_upload_data}
+#' 
+#' @details 
+#' 
+#' This is taken from \link[bigrquery]{insert_upload_job}
+#' @author Hadley Wickham \email{hadley@@rstudio.com}
+#'
+#' @export
+schema_fields <- function(data) { 
   types <- vapply(data, data_type, character(1))
   unname(Map(function(type, name) list(name = name, type = type), types, names(data)))
 }
@@ -132,6 +303,8 @@ data_type <- function(x) {
          factor = "STRING",
          Date = "TIMESTAMP",
          POSIXct = "TIMESTAMP",
+         hms = "INTEGER",
+         difftime = "INTEGER",
          stop("Unknown class ", paste0(class(x), collapse = "/"))
   )
 }

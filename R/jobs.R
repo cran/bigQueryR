@@ -1,3 +1,15 @@
+# As job
+as.job <- function(x){
+  stopifnot(x$kind == "bigquery#job")
+  structure(x, class = c("bqr_job", class(x)))
+}
+
+# Is job
+is.job <- function(x){
+  inherits(x, "bqr_job")
+}
+
+
 #' Wait for a bigQuery job
 #' 
 #' Wait for a bigQuery job to finish.
@@ -13,25 +25,38 @@
 #' @export
 bqr_wait_for_job <- function(job, wait=5){
   
-  stopifnot(job$kind == "bigquery#job")
+  stopifnot(is.job(job))
   
   status <- FALSE
   time <- Sys.time()
   
   while(!status){
     Sys.sleep(wait)
-    message("Waiting for BigQuery...job timer: ", format(difftime(Sys.time(), 
+    myMessage("Waiting for job: ", job$jobReference$jobId, " - Job timer: ", format(difftime(Sys.time(), 
                                                                        time), 
-                                                              format = "%H:%M:%S"))
+                                                              format = "%H:%M:%S"), level = 3)
     
-    job <- bigQueryR::bqr_get_job(projectId = job$jobReference$projectId, 
-                                  jobId = job$jobReference$jobId)
+    job <- bqr_get_job(projectId = job$jobReference$projectId, 
+                       jobId = job$jobReference$jobId)
+    
+    if(getOption("googleAuthR.verbose") <= 2){
+      myMessage("job configuration:")
+      print(job)
+    }
+    
+    myMessage("Job status: ", job$status$state, level = 3)
     
     if(job$status$state == "DONE"){
       status <- TRUE 
     } else {
       status <- FALSE
     }
+  }
+  
+  if(!is.null(job$status$errorResult)){
+    myMessage("Job failed", level = 3)
+    warning(job$status$errorResult$message)
+    myMessage(job$status$errorResult$message, level = 3)
   }
   
   job
@@ -95,8 +120,8 @@ bqr_wait_for_job <- function(job, wait=5){
 #' 
 #' @family BigQuery asynch query functions  
 #' @export
-bqr_get_job <- function(projectId, jobId){
-  
+bqr_get_job <- function(projectId = bq_get_global_project(), jobId){
+  check_bq_auth()
   stopifnot(inherits(projectId, "character"),
             inherits(jobId, "character"))
   
@@ -110,7 +135,7 @@ bqr_get_job <- function(projectId, jobId){
   req <- job(path_arguments = list(projects = projectId,
                                    jobs = jobId))
   
-  req$content
+  as.job(req$content)
   
 }
 
@@ -133,11 +158,11 @@ bqr_get_job <- function(projectId, jobId){
 #' 
 #' @return A list of jobs resources
 #' @export
-bqr_list_jobs <- function(projectId,
+bqr_list_jobs <- function(projectId = bq_get_global_project(),
                           allUsers = FALSE,
                           projection = c("full","minimal"),
                           stateFilter = c("done","pending","running")){
-  
+  check_bq_auth()
   stopifnot(inherits(projectId, "character"),
             inherits(allUsers, "logical"))
   
@@ -162,6 +187,6 @@ bqr_list_jobs <- function(projectId,
   out <- rmNullObs(req$content)
   options("googleAuthR.jsonlite.simplifyVector" = TRUE )
   
-  out
+  lapply(out$jobs, as.job)
   
 }
