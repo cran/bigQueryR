@@ -1,6 +1,6 @@
 Package: bigQueryR
 Title: Interface with Google BigQuery with Shiny Compatibility
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: c(person("Mark", "Edmondson",email = "r@sunholo.com",
                   role = c("aut", "cre")),
              person("Hadley", "Wickham", , "hadley@rstudio.com", role = "ctb")
@@ -20,9 +20,9 @@ Suggests: shiny (>= 0.12.1), knitr, rmarkdown, testthat
 RoxygenNote: 6.0.1
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2017-05-02 21:18:54 UTC; mark
+Packaged: 2017-05-19 12:58:55 UTC; mark
 Author: Mark Edmondson [aut, cre],
   Hadley Wickham [ctb]
 Maintainer: Mark Edmondson <r@sunholo.com>
 Repository: CRAN
-Date/Publication: 2017-05-03 06:52:58 UTC
+Date/Publication: 2017-05-20 08:02:46 UTC

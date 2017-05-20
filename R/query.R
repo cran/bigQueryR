@@ -186,6 +186,8 @@ bqr_query_asynch <- function(projectId = bq_get_global_project(),
                                                   "WRITE_TRUNCATE",
                                                   "WRITE_APPEND")){
   
+  writeDisposition <- match.arg(writeDisposition)
+  
   check_bq_auth()
   ## make job
   job <- 
@@ -197,8 +199,8 @@ bqr_query_asynch <- function(projectId = bq_get_global_project(),
   
   config <- list(
     jobReference = list(
-      projectId = projectId,
-      jobId = idempotency() ## uuid to stop duplicates
+      projectId = projectId
+     ## jobId = idempotency() ## uuid to stop duplicates - breaks if set.seed() (#37)
     ),
     configuration = list(
       query = list(
