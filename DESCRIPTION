@@ -1,6 +1,6 @@
 Package: bigQueryR
 Title: Interface with Google BigQuery with Shiny Compatibility
-Version: 0.3.1
+Version: 0.3.2
 Authors@R: c(person("Mark", "Edmondson",email = "r@sunholo.com",
                   role = c("aut", "cre")),
              person("Hadley", "Wickham", , "hadley@rstudio.com", role = "ctb")
@@ -14,15 +14,15 @@ BugReports: https://github.com/cloudyr/bigQueryR/issues
 License: MIT + file LICENSE
 LazyData: TRUE
 Depends: R (>= 3.2.0)
-Imports: googleAuthR (>= 0.5.1), googleCloudStorageR (>= 0.2.0),
+Imports: googleAuthR (>= 0.6.0), googleCloudStorageR (>= 0.2.0),
         jsonlite (>= 1.0), httr (>= 1.2.1), assertthat
 Suggests: shiny (>= 0.12.1), knitr, rmarkdown, testthat
 RoxygenNote: 6.0.1
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2017-05-19 12:58:55 UTC; mark
+Packaged: 2017-10-23 20:48:21 UTC; mark
 Author: Mark Edmondson [aut, cre],
   Hadley Wickham [ctb]
 Maintainer: Mark Edmondson <r@sunholo.com>
 Repository: CRAN
-Date/Publication: 2017-05-20 08:02:46 UTC
+Date/Publication: 2017-10-23 20:55:03 UTC

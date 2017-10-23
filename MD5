@@ -1,15 +1,15 @@
-0879644c81440bb8924a68bc59041bc6 *DESCRIPTION
+85fff63589ae1fe2d5a09e1e1588b332 *DESCRIPTION
 1918b8807c8b12031663a9efe23458e0 *LICENSE
 bc6b17f202ec4268089cc692723e20ca *NAMESPACE
-b451e2e00a7f6dcef979ada1260e5034 *NEWS.md
-b0c470bbd0c12471ff6d861f1218fc40 *R/auth.R
+0672e04e825cf5f6d16621d37f0bc52e *NEWS.md
+507112e884cad545d4d8f3d28efeda2e *R/auth.R
 086eb868dbba4a932d07a6733668b75d *R/bigQueryR.R
 455eeee08045823b8139a02fcbe11184 *R/dataParseFunctions.R
 5ffba2c79cacc86c5b313b1c8405c767 *R/downloadData.R
 2c421cc2f3b9e1495cc7eaa2ee2e9455 *R/globals.R
 68d75a7ae77b9432833e0e1332f1a668 *R/jobs.R
 0fcd82dcfd2cdaebccfc403dd14e8190 *R/listBigQuery.R
-c19901ae9c831f8fd2a0736d3179e55f *R/options.R
+26119f0c9d0b787fa084c36e4e15de7a *R/options.R
 81db1fd0980ae48495ef1bbe780eafe8 *R/partition.R
 4fcedd2524f11131bff92a22277f68e0 *R/print_methods.R
 70de4f4ca9d5bf1fca6a4ab86c725650 *R/query.R
@@ -19,7 +19,7 @@ eef5d355fb0e6bab3f7a4a456baeb9d7 *R/tables.R
 1c54afe76713250972cdbf35f6bb74e2 *build/vignette.rds
 e8d818d4be126d9c02920eb65f6437f9 *inst/CITATION
 59d79154d6247524cbbc88634227446a *inst/doc/bigQueryR.Rmd
-c0d1a199720978508d54aeec84c79aa6 *inst/doc/bigQueryR.html
+f2ca526ff7ad5768864c4f6de76592bf *inst/doc/bigQueryR.html
 f79d7c7ac5251dc6a23a6b017defdb76 *man/bigQueryR.Rd
 f2eaee4efd44db76c75a716149aba951 *man/bq_get_global_dataset.Rd
 791f0abace3714d39e1e8756a20d263b *man/bq_get_global_project.Rd
@@ -55,7 +55,4 @@ d73a74c4a41bb745e0c47c8e69b1008b *man/parse_bqr_query.Rd
 c9fdcdaed7c24bf33774de3e5207116c *man/rmNullObs.Rd
 4f517b883d180122b87094234afadacb *man/schema_fields.Rd
 95592f7be17d720b52e846ab24cb9e32 *man/timestamp_to_r.Rd
-2053e23752bee1f280b8eaa6f225a439 *tests/testthat.R
-4c8d57de99d7aef7be21fe3570a77d99 *tests/testthat/auth.json
-3d5d242c2fce46c465267e12bb387325 *tests/testthat/test_query.R
 59d79154d6247524cbbc88634227446a *vignettes/bigQueryR.Rmd
