@@ -1,3 +1,65 @@
+#' Copy BigQuery table
+#' 
+#' Copy a source table to another destination
+#' 
+#' @param source_projectid source table's projectId
+#' @param source_datasetid source table's datasetId
+#' @param source_tableid source table's tableId
+#' @param destination_projectid destination table's projectId
+#' @param destination_datasetid destination table's datasetId
+#' @param destination_tableid destination table's tableId
+#' @param createDisposition Create table's behaviour
+#' @param writeDisposition Write to an existing table's behaviour
+#' 
+#' @return A job object
+#' 
+#' @export
+#' @import assertthat
+bqr_copy_table <- function(source_tableid,
+                           destination_tableid,
+                           source_projectid = bqr_get_global_project(),
+                           source_datasetid = bqr_get_global_dataset(),
+                           destination_projectid = bqr_get_global_project(),
+                           destination_datasetid = bqr_get_global_dataset(),
+                           createDisposition = c("CREATE_IF_NEEDED","CREATE_NEVER"),
+                           writeDisposition = c("WRITE_TRUNCATE", "WRITE_APPEND", "WRITE_EMPTY")){
+  
+  createDisposition <- match.arg(createDisposition)
+  writeDisposition <- match.arg(writeDisposition)
+  
+  assert_that(
+    is.string(source_projectid),
+    is.string(source_datasetid),
+    is.string(source_tableid),
+    is.string(destination_projectid),
+    is.string(destination_datasetid),
+    is.string(destination_tableid)
+  )
+  
+  config <- list(
+    configuration = list(
+      copy = list(
+        createDisposition = createDisposition,
+        sourceTable = list(
+          projectId = source_projectid,
+          datasetId = source_datasetid,
+          tableId = source_tableid
+        ),
+        destinationTable = list(
+          projectId = destination_projectid,
+          datasetId = destination_datasetid,
+          tableId = destination_tableid
+        ),
+        writeDisposition = writeDisposition
+      )
+    )
+  )
+  
+  call_job(source_projectid, config = config)
+}
+
+
+
 #' List BigQuery tables in a dataset
 #' 
 #' @param projectId The BigQuery project ID
@@ -14,8 +76,8 @@
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_list_tables <- function(projectId = bq_get_global_project(), 
-                            datasetId = bq_get_global_dataset(),
+bqr_list_tables <- function(projectId = bqr_get_global_project(), 
+                            datasetId = bqr_get_global_dataset(),
                             maxResults = 1000){
   
   check_bq_auth()
@@ -88,7 +150,9 @@ parse_bqr_list_tables <- function(x) {
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_table_meta <- function(projectId = bq_get_global_project(), datasetId = bq_get_global_dataset(), tableId){
+bqr_table_meta <- function(projectId = bqr_get_global_project(), 
+                           datasetId = bqr_get_global_dataset(), 
+                           tableId){
   
   check_bq_auth()
   f <- function(x){
@@ -122,7 +186,9 @@ bqr_table_meta <- function(projectId = bq_get_global_project(), datasetId = bq_g
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_table_data <- function(projectId = bq_get_global_project(), datasetId = bq_get_global_dataset(), tableId,
+bqr_table_data <- function(projectId = bqr_get_global_project(), 
+                           datasetId = bqr_get_global_dataset(), 
+                           tableId,
                            maxResults = 1000){
   check_bq_auth()
   l <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
@@ -162,8 +228,8 @@ bqr_table_data <- function(projectId = bq_get_global_project(), datasetId = bq_g
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_create_table <- function(projectId = bq_get_global_project(), 
-                             datasetId = bq_get_global_dataset(), 
+bqr_create_table <- function(projectId = bqr_get_global_project(), 
+                             datasetId = bqr_get_global_dataset(), 
                              tableId, 
                              template_data,
                              timePartitioning = FALSE,
@@ -231,8 +297,9 @@ bqr_create_table <- function(projectId = bq_get_global_project(),
 #' 
 #' @family bigQuery meta functions
 #' @export
-bqr_delete_table <- function(projectId = bq_get_global_project(), 
-                             datasetId = bq_get_global_dataset(), tableId){
+bqr_delete_table <- function(projectId = bqr_get_global_project(), 
+                             datasetId = bqr_get_global_dataset(), 
+                             tableId){
   check_bq_auth()
   l <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
                                       "DELETE",

@@ -30,8 +30,8 @@
 #' 
 #' @family BigQuery query functions
 #' @export
-bqr_query <- function(projectId = bq_get_global_project(), 
-                      datasetId = bq_get_global_dataset(), 
+bqr_query <- function(projectId = bqr_get_global_project(), 
+                      datasetId = bqr_get_global_dataset(), 
                       query, 
                       maxResults = 1000, 
                       useLegacySql = TRUE, 
@@ -54,11 +54,13 @@ bqr_query <- function(projectId = bq_get_global_project(),
   
   body <- rmNullObs(body)
   
-  q <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
+  # solve 404?
+  the_url <- sprintf("https://www.googleapis.com/bigquery/v2/projects/%s/queries", projectId)
+  
+  q <- googleAuthR::gar_api_generator(the_url,
                                       "POST",
-                                      path_args = list(projects = projectId,
-                                                       queries = ""),
-                                      data_parse_function = parse_bqr_query)
+                                      data_parse_function = parse_bqr_query,
+                                      checkTrailingSlash = FALSE)
   
   data <- try(q(the_body = body,
                 path_arguments = list(projects = projectId)))
@@ -177,8 +179,8 @@ bqr_query <- function(projectId = bq_get_global_project(),
 #'
 #' @family BigQuery asynch query functions  
 #' @export
-bqr_query_asynch <- function(projectId = bq_get_global_project(), 
-                             datasetId = bq_get_global_dataset(), 
+bqr_query_asynch <- function(projectId = bqr_get_global_project(), 
+                             datasetId = bqr_get_global_dataset(), 
                              query, 
                              destinationTableId,
                              useLegacySql = TRUE,

@@ -4,17 +4,18 @@
 \alias{bqr_auth}
 \title{Authenticate this session}
 \usage{
-bqr_auth(new_user = FALSE, no_auto = FALSE)
+bqr_auth(token = NULL, new_user = FALSE, no_auto = FALSE)
 }
 \arguments{
+\item{token}{A preexisting token to authenticate with}
+
 \item{new_user}{If TRUE, reauthenticate via Google login screen}
 
 \item{no_auto}{Will ignore auto-authentication settings if TRUE
 
 If you have set the environment variable \code{BQ_AUTH_FILE} to a valid file location,
   the function will look there for authentication details.
-Otherwise it will look in the working directory for the `.httr-oauth` file, which if not present
-  will trigger an authentication flow via Google login screen in your browser.
+Otherwise it will look in the working directory for the `bq.oauth` file, which if not present will trigger an authentication flow via Google login screen in your browser.
 
 If \code{BQ_AUTH_FILE} is specified, then \code{bqr_auth()} will be called upon loading the package
   via \code{library(bigQueryR)},

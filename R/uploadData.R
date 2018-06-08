@@ -10,6 +10,12 @@
 #' @param sourceFormat If \code{upload_data} is a Google Cloud Storage URI, supply the data format.  Default is \code{CSV}
 #' @param wait If uploading a data.frame, whether to wait for it to upload before returning
 #' @param autodetect Experimental feature that auto-detects schema for CSV and JSON files
+#' @param nullMarker Specifies a string that represents a null value in a CSV file. 
+#'   For example, if you specify \code{\\N}, BigQuery interprets \code{\\N} as a null value when loading a CSV file. The default value is the empty string. 
+#' @param maxBadRecords The maximum number of bad records that BigQuery can ignore when running the job
+#' @param allowJaggedRows Whether to allow rows with variable length columns
+#' @param allowQuotedNewlines Whether to allow datasets with quoted new lines
+#' @param fieldDelimiter The separator for fields in a CSV file.  Default is comma - \code{,}
 #' 
 #' @return TRUE if successful, FALSE if not. 
 #' 
@@ -51,6 +57,10 @@
 #'                 upload_data = c("gs://your-project/mtcars_test1.csv", 
 #'                                 "gs://your-project/mtcars_test2.csv"),
 #'                 schema = user_schema)
+#'  
+#'  ## for big files, its helpful to create your schema on a small sample
+#'  ## a quick way to do this on the command line is:
+#'  # "head bigfile.csv > head_bigfile.csv"
 #' 
 #' 
 #' 
@@ -58,23 +68,34 @@
 #' 
 #' @family bigQuery upload functions
 #' @export
-bqr_upload_data <- function(projectId = bq_get_global_project(), 
-                            datasetId = bq_get_global_dataset(), 
+#' @import assertthat
+bqr_upload_data <- function(projectId = bqr_get_global_project(), 
+                            datasetId = bqr_get_global_dataset(), 
                             tableId, 
                             upload_data, 
                             create = c("CREATE_IF_NEEDED", "CREATE_NEVER"),
                             overwrite = FALSE,
                             schema = NULL,
-                            sourceFormat = c("CSV", "DATASTORE_BACKUP", "NEWLINE_DELIMITED_JSON","AVRO"),
+                            sourceFormat = c("CSV", "DATASTORE_BACKUP", 
+                                             "NEWLINE_DELIMITED_JSON","AVRO"),
                             wait = TRUE,
-                            autodetect = FALSE){
+                            autodetect = FALSE,
+                            nullMarker = NULL,
+                            maxBadRecords = NULL,
+                            allowJaggedRows = FALSE,
+                            allowQuotedNewlines = FALSE,
+                            fieldDelimiter = ","){
   
 
-  assertthat::assert_that(is.character(projectId),
-                          is.character(datasetId),
-                          is.character(tableId),
-                          is.logical(overwrite),
-                          is.logical(wait))
+  assert_that(is.string(projectId),
+              is.string(datasetId),
+              is.string(tableId),
+              is.flag(overwrite),
+              is.flag(wait),
+              is.flag(allowJaggedRows),
+              is.flag(allowQuotedNewlines),
+              is.flag(autodetect),
+              is.string(fieldDelimiter))
   sourceFormat <- match.arg(sourceFormat)
   create <- match.arg(create)
   
@@ -105,7 +126,12 @@ bqr_upload_data <- function(projectId = bq_get_global_project(),
                 user_schema = schema,
                 sourceFormat = sourceFormat,
                 wait = wait,
-                autodetect = autodetect)
+                autodetect = autodetect,
+                nullMarker = nullMarker,
+                maxBadRecords = maxBadRecords,
+                allowJaggedRows = allowJaggedRows,
+                allowQuotedNewlines = allowQuotedNewlines,
+                fieldDelimiter = fieldDelimiter)
   
 }
 
@@ -118,7 +144,12 @@ bqr_do_upload <- function(upload_data,
                           user_schema,
                           sourceFormat,
                           wait,
-                          autodetect){
+                          autodetect,
+                          nullMarker,
+                          maxBadRecords,
+                          allowJaggedRows,
+                          allowQuotedNewlines,
+                          fieldDelimiter){
   check_bq_auth()
   UseMethod("bqr_do_upload", upload_data)
 }
@@ -129,25 +160,41 @@ bqr_do_upload.data.frame <- function(upload_data,
                                      datasetId, 
                                      tableId,
                                      create,
-                                     user_schema, # not used
+                                     user_schema,
                                      sourceFormat, # not used
                                      wait,
-                                     autodetect){ 
+                                     autodetect,
+                                     nullMarker,
+                                     maxBadRecords,
+                                     allowJaggedRows,
+                                     allowQuotedNewlines,
+                                     fieldDelimiter){ 
+  
+  if(!is.null(user_schema)){
+    schema <- user_schema
+  } else {
+    schema <- schema_fields(upload_data)
+  }
   
   config <- list(
     configuration = list(
       load = list(
+        fieldDelimiter = fieldDelimiter,
+        nullMarker = nullMarker,
+        maxBadRecords = maxBadRecords,
         sourceFormat = "CSV",
         createDisposition = jsonlite::unbox(create),
         schema = list(
-          fields = schema_fields(upload_data)
+          fields = schema
         ),
         destinationTable = list(
           projectId = projectId,
           datasetId = datasetId,
           tableId = tableId
         ),
-        autodetect = autodetect
+        autodetect = autodetect,
+        allowJaggedRows = allowJaggedRows,
+        allowQuotedNewlines = allowQuotedNewlines
       )
     )
   )
@@ -172,7 +219,8 @@ bqr_do_upload.data.frame <- function(upload_data,
                          line_break,
                          line_break,
                          csv)
-  mp_body <- paste(mp_body_schema, mp_body_data, paste0(boundary, "--"), sep = "\r\n")
+  mp_body <- paste(mp_body_schema, mp_body_data, 
+                   paste0(boundary, "--"), sep = "\r\n")
   
   l <- 
     googleAuthR::gar_api_generator("https://www.googleapis.com/upload/bigquery/v2",
@@ -203,8 +251,11 @@ bqr_do_upload.data.frame <- function(upload_data,
       if(wait){
         out <- bqr_wait_for_job(as.job(req$content))
       } else {
-        myMessage("Returning: BigQuery load of local data.frame Job object: ", req$content$jobReference$jobId, level = 3)
-        out <- bqr_get_job(req$content$jobReference$jobId, projectId = req$content$jobReference$projectId)
+        myMessage("Returning: BigQuery load of local data.frame Job object: ", 
+                  req$content$jobReference$jobId, level = 3)
+        
+        out <- bqr_get_job(req$content$jobReference$jobId, 
+                           projectId = req$content$jobReference$projectId)
       }
 
     } else {
@@ -228,7 +279,12 @@ bqr_do_upload.character <- function(upload_data,
                                     user_schema,
                                     sourceFormat,
                                     wait, # not used
-                                    autodetect){
+                                    autodetect,
+                                    nullMarker,
+                                    maxBadRecords,
+                                    allowJaggedRows,
+                                    allowQuotedNewlines,
+                                    fieldDelimiter){
   
   if(length(upload_data) > 1){
     source_uri <- upload_data
@@ -239,22 +295,50 @@ bqr_do_upload.character <- function(upload_data,
   config <- list(
     configuration = list(
       load = list(
+        fieldDelimiter = fieldDelimiter,
+        nullMarker = nullMarker,
+        maxBadRecords = maxBadRecords,
         sourceFormat = sourceFormat,
         createDisposition = jsonlite::unbox(create),
         sourceUris = source_uri,
-        schema = list(
-          fields = user_schema
-        ),
         destinationTable = list(
           projectId = projectId,
           datasetId = datasetId,
           tableId = tableId
         ),
-        autodetect = autodetect
+        autodetect = autodetect,
+        allowJaggedRows = allowJaggedRows,
+        allowQuotedNewlines = allowQuotedNewlines
       )
     )
   )
   
+  ## only provide schema if autodetect is FALSE
+  if(!autodetect){
+    config <- list(
+      configuration = list(
+        load = list(
+          fieldDelimiter = fieldDelimiter,
+          nullMarker = nullMarker,
+          maxBadRecords = maxBadRecords,
+          sourceFormat = sourceFormat,
+          createDisposition = jsonlite::unbox(create),
+          sourceUris = source_uri,
+          schema = list(
+             fields = user_schema
+           ),
+          destinationTable = list(
+            projectId = projectId,
+            datasetId = datasetId,
+            tableId = tableId
+          ),
+          autodetect = autodetect,
+          allowJaggedRows = allowJaggedRows,
+          allowQuotedNewlines = allowQuotedNewlines
+        )
+      )
+    )
+  }
   
   l <- 
     googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
@@ -268,7 +352,8 @@ bqr_do_upload.character <- function(upload_data,
                           tableId = tableId),
     the_body = config)
   
-  myMessage("Returning: BigQuery load from Google Cloud Storage Job object: ", req$content$jobReference$jobId, level = 3)
+  myMessage("Returning: BigQuery load from Google Cloud Storage Job object: ", 
+            req$content$jobReference$jobId, level = 3)
   
   bqr_get_job(req$content$jobReference$jobId, projectId = req$content$jobReference$projectId)
 
@@ -301,7 +386,7 @@ data_type <- function(x) {
          numeric = "FLOAT",
          integer = "INTEGER",
          factor = "STRING",
-         Date = "TIMESTAMP",
+         Date = "DATE",
          POSIXct = "TIMESTAMP",
          hms = "INTEGER",
          difftime = "INTEGER",
@@ -324,8 +409,8 @@ standard_csv <- function(values) {
   is_time <- vapply(values, function(x) inherits(x, "POSIXct"), logical(1))
   values[is_time] <- lapply(values[is_time], as.numeric)
   
-  is_date <- vapply(values, function(x) inherits(x, "Date"), logical(1))
-  values[is_date] <- lapply(values[is_date], function(x) as.numeric(as.POSIXct(x)))
+  # is_date <- vapply(values, function(x) inherits(x, "Date"), logical(1))
+  # values[is_date] <- lapply(values[is_date], function(x) as.numeric(as.POSIXct(x)))
   
   tmp <- tempfile(fileext = ".csv")
   on.exit(unlink(tmp))

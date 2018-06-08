@@ -1,9 +1,20 @@
-# bigQuery 0.3.2
+# bigQueryR 0.4.0
+
+* support `nullMarker`, `maxBadRecords`, `fieldDelimiter` in upload jobs
+* Support BigQuery type `DATE` for R class `Date` data.frame columns (BigQuery type `TIMESTAMP` still default for `POSIXct`columns) (#48)
+* Allow custom user schema for uploads of data.frames (#48)
+* Rename misnamed global functions from `bq_` prefix to `bqr_` prefix
+* Add `allowJaggedRows` and `allowQuotedNewlines` options to upload via `bqr_upload_data()`
+* `bqr_get_job` now accepts a job object as well as the jobId
+* Fix bug with `bqr_upload_data` where `autodetect=TRUE` didn't work with `gcs://` loads from Cloud Storage
+* Fix bug with `bqr_query()` that caused a 404 error sometimes. 
+
+# bigQueryR 0.3.2
 
 * Move to new batch endpoint (#41)
-* Remove travis env arg
 
-# bigQuery 0.3.1
+
+# bigQueryR 0.3.1
 
 * Fix asynch job fail if user previously `set.seed()` (#37)
 * skip tests on CRAN causing error
