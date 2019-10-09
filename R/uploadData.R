@@ -5,7 +5,7 @@
 #' @param tableId ID of table where data will end up.
 #' @param upload_data The data to upload, a data.frame object or a Google Cloud Storage URI
 #' @param create Whether to create a new table if necessary, or error if it already exists.
-#' @param overwrite If TRUE will delete any existing table and upload new data.
+#' @param writeDisposition How to add the data to a table.
 #' @param schema If \code{upload_data} is a Google Cloud Storage URI, supply the data schema.  For \code{CSV} a helper function is available by using \link{schema_fields} on a data sample
 #' @param sourceFormat If \code{upload_data} is a Google Cloud Storage URI, supply the data format.  Default is \code{CSV}
 #' @param wait If uploading a data.frame, whether to wait for it to upload before returning
@@ -62,7 +62,19 @@
 #'  ## a quick way to do this on the command line is:
 #'  # "head bigfile.csv > head_bigfile.csv"
 #' 
-#' 
+#' ## upload nested lists as JSON
+#' the_list <- list(list(col1 = "yes", col2 = "no", 
+#'                       col3 = list(nest1 = 1, nest2 = 3), col4 = "oh"),
+#'                  list(col1 = "yes2", 
+#'                       col2 = "n2o", col3 = list(nest1 = 5, nest2 = 7), 
+#'                       col4 = "oh2"), 
+#'                  list(col1 = "yes3", col2 = "no3", 
+#'                       col3 = list(nest1 = 7, nest2 = 55), col4 = "oh3"))
+#'    
+#' bqr_upload_data(datasetId = "test", 
+#'                 tableId = "nested_list_json", 
+#'                 upload_data = the_list, 
+#'                 autodetect = TRUE)
 #' 
 #' }
 #' 
@@ -74,7 +86,7 @@ bqr_upload_data <- function(projectId = bqr_get_global_project(),
                             tableId, 
                             upload_data, 
                             create = c("CREATE_IF_NEEDED", "CREATE_NEVER"),
-                            overwrite = FALSE,
+                            writeDisposition = c("WRITE_TRUNCATE","WRITE_APPEND","WRITE_EMPTY"),
                             schema = NULL,
                             sourceFormat = c("CSV", "DATASTORE_BACKUP", 
                                              "NEWLINE_DELIMITED_JSON","AVRO"),
@@ -84,46 +96,30 @@ bqr_upload_data <- function(projectId = bqr_get_global_project(),
                             maxBadRecords = NULL,
                             allowJaggedRows = FALSE,
                             allowQuotedNewlines = FALSE,
-                            fieldDelimiter = ","){
+                            fieldDelimiter = NULL){
   
 
   assert_that(is.string(projectId),
               is.string(datasetId),
               is.string(tableId),
-              is.flag(overwrite),
               is.flag(wait),
               is.flag(allowJaggedRows),
               is.flag(allowQuotedNewlines),
-              is.flag(autodetect),
-              is.string(fieldDelimiter))
+              is.flag(autodetect))
   sourceFormat <- match.arg(sourceFormat)
   create <- match.arg(create)
+  writeDisposition <- match.arg(writeDisposition)
   
-  if(inherits(upload_data, "data.frame")){
-    myMessage("Uploading local data.frame", level = 3)
-  } else if(inherits(upload_data, "character")){
-    myMessage("Uploading from Google Cloud Storage URI", level = 3)
-    stopifnot(all(grepl("^gs://", upload_data)))
-    
-    if(is.null(schema) && !autodetect){
-      stop("Must supply a data schema or use autodetect if loading from Google Cloud Storage - see ?schema_fields")
-    }
-  }
+  check_bq_auth()
   
-  if(overwrite){
-    deleted <- bqr_delete_table(projectId = projectId,
-                                datasetId = datasetId,
-                                tableId = tableId)
-    
-    if(!deleted) stop("Couldn't delete table")
-  }
-  
+
   bqr_do_upload(upload_data = upload_data, 
                 projectId = projectId,
                 datasetId = datasetId,
                 tableId = tableId,
                 create = create,
-                user_schema = schema,
+                writeDisposition = writeDisposition,
+                schema = schema,
                 sourceFormat = sourceFormat,
                 wait = wait,
                 autodetect = autodetect,
@@ -133,15 +129,17 @@ bqr_upload_data <- function(projectId = bqr_get_global_project(),
                 allowQuotedNewlines = allowQuotedNewlines,
                 fieldDelimiter = fieldDelimiter)
   
+  
 }
 
-# S3 generic dispatch
+#S3 generic dispatch
 bqr_do_upload <- function(upload_data, 
                           projectId, 
                           datasetId, 
                           tableId,
                           create,
-                          user_schema,
+                          writeDisposition,
+                          schema,
                           sourceFormat,
                           wait,
                           autodetect,
@@ -150,43 +148,54 @@ bqr_do_upload <- function(upload_data,
                           allowJaggedRows,
                           allowQuotedNewlines,
                           fieldDelimiter){
-  check_bq_auth()
-  UseMethod("bqr_do_upload", upload_data)
+
+    UseMethod("bqr_do_upload", upload_data)
+   
 }
 
-# upload for local data.fram
-bqr_do_upload.data.frame <- function(upload_data, 
-                                     projectId, 
-                                     datasetId, 
-                                     tableId,
-                                     create,
-                                     user_schema,
-                                     sourceFormat, # not used
-                                     wait,
-                                     autodetect,
-                                     nullMarker,
-                                     maxBadRecords,
-                                     allowJaggedRows,
-                                     allowQuotedNewlines,
-                                     fieldDelimiter){ 
+
+bqr_do_upload.list <- function(upload_data, 
+                               projectId, 
+                               datasetId, 
+                               tableId,
+                               create,
+                               writeDisposition,
+                               schema,
+                               sourceFormat, # not used
+                               wait,
+                               autodetect,
+                               nullMarker,
+                               maxBadRecords,
+                               allowJaggedRows,
+                               allowQuotedNewlines,
+                               fieldDelimiter){ 
   
-  if(!is.null(user_schema)){
-    schema <- user_schema
+  myMessage("Uploading local list as JSON", level = 3)
+  
+  # how to create schema for json? 
+  # if(!is.null(user_schema)){
+  #   schema <- user_schema
+  # } else {
+  #   schema <- schema_fields(upload_data)
+  # }
+  
+  if(autodetect){
+    the_schema <- NULL
   } else {
-    schema <- schema_fields(upload_data)
+    the_schema <- list(
+      fields = schema
+    )
   }
   
   config <- list(
     configuration = list(
       load = list(
-        fieldDelimiter = fieldDelimiter,
         nullMarker = nullMarker,
         maxBadRecords = maxBadRecords,
-        sourceFormat = "CSV",
+        sourceFormat = "NEWLINE_DELIMITED_JSON",
         createDisposition = jsonlite::unbox(create),
-        schema = list(
-          fields = schema
-        ),
+        writeDisposition = jsonlite::unbox(writeDisposition),
+        schema = the_schema,
         destinationTable = list(
           projectId = projectId,
           datasetId = datasetId,
@@ -199,11 +208,118 @@ bqr_do_upload.data.frame <- function(upload_data,
     )
   )
   
+  config <- rmNullObs(config)
+  
+  the_json <- paste(lapply(upload_data, jsonlite::toJSON),
+                    sep = "\n", collapse = "\n")
+  
+  mp_body <- make_body(config, obj = the_json)
+  
+  req <- do_obj_req(mp_body, projectId = projectId, datasetId = datasetId, tableId = tableId)
+  
+  out <- check_req(req, wait = wait)
+  
+  out 
+  
+   
+}
+
+# upload for local data.fram
+bqr_do_upload.data.frame <- function(upload_data, 
+                                     projectId, 
+                                     datasetId, 
+                                     tableId,
+                                     create,
+                                     writeDisposition,
+                                     schema,
+                                     sourceFormat, # not used
+                                     wait,
+                                     autodetect,
+                                     nullMarker,
+                                     maxBadRecords,
+                                     allowJaggedRows,
+                                     allowQuotedNewlines,
+                                     fieldDelimiter){ 
+  
+  myMessage("Uploading local data.frame", level = 3)
+  
+  if(is.null(fieldDelimiter)){
+    # default to ","
+    fieldDelimiter <- ","
+  }
+  
+  if(!is.null(schema)){
+    the_schema <- list(
+      fields = schema
+    )
+  } else {
+    the_schema <- list(
+      fields = schema_fields(upload_data)
+    )
+  }
+  
+  if(autodetect){
+    warning("autodetect=TRUE is set to FALSE for data.frame uploads 
+            as the schema is inferred from the data.frame's column class")
+  }
+  
+  config <- list(
+    configuration = list(
+      load = list(
+        fieldDelimiter = fieldDelimiter,
+        nullMarker = nullMarker,
+        maxBadRecords = maxBadRecords,
+        sourceFormat = "CSV",
+        createDisposition = jsonlite::unbox(create),
+        writeDisposition = jsonlite::unbox(writeDisposition),
+        schema = the_schema,
+        destinationTable = list(
+          projectId = projectId,
+          datasetId = datasetId,
+          tableId = tableId
+        ),
+        autodetect = FALSE,
+        allowJaggedRows = allowJaggedRows,
+        allowQuotedNewlines = allowQuotedNewlines
+      )
+    )
+  )
+  
+  config <- rmNullObs(config)
+  
   csv <- standard_csv(upload_data)
   
+  mp_body <- make_body(config, obj = csv)
+  
+  req <- do_obj_req(mp_body, projectId = projectId, datasetId = datasetId, tableId = tableId)
+  
+  out <- check_req(req, wait = wait)
+  
+  out
+}
+
+do_obj_req <- function(mp_body, projectId, datasetId, tableId) {
+  l <- 
+    googleAuthR::gar_api_generator("https://www.googleapis.com/upload/bigquery/v2",
+                                   "POST",
+                                   path_args = list(projects = projectId,
+                                                    jobs = ""),
+                                   pars_args = list(uploadType="multipart"),
+                                   customConfig = list(
+                                     httr::add_headers("Content-Type" = "multipart/related; boundary=bqr_upload"),
+                                     httr::add_headers("Content-Length" = nchar(mp_body, type = "bytes"))
+                                   )
+    )
+  
+  l(path_arguments = list(projects = projectId, 
+                          datasets = datasetId,
+                          tableId = tableId),
+    the_body = mp_body)
+}
+
+make_body <- function(config, obj) {
   boundary <- "--bqr_upload"
   line_break <- "\r\n"
-  
   mp_body_schema <- paste(boundary,
                           "Content-Type: application/json; charset=UTF-8",
                           line_break,
@@ -218,27 +334,14 @@ bqr_do_upload.data.frame <- function(upload_data,
                          "Content-Type: application/octet-stream",
                          line_break,
                          line_break,
-                         csv)
-  mp_body <- paste(mp_body_schema, mp_body_data, 
+                         obj)
+  
+  paste(mp_body_schema, mp_body_data, 
                    paste0(boundary, "--"), sep = "\r\n")
-  
-  l <- 
-    googleAuthR::gar_api_generator("https://www.googleapis.com/upload/bigquery/v2",
-                                   "POST",
-                                   path_args = list(projects = projectId,
-                                                    jobs = ""),
-                                   pars_args = list(uploadType="multipart"),
-                                   customConfig = list(
-                                     httr::add_headers("Content-Type" = "multipart/related; boundary=bqr_upload"),
-                                     httr::add_headers("Content-Length" = nchar(mp_body, type = "bytes"))
-                                   )
-    )
-  
-  req <- l(path_arguments = list(projects = projectId, 
-                          datasets = datasetId,
-                          tableId = tableId),
-    the_body = mp_body)
-  
+}
+
+
+check_req <- function(req, wait) {
   if(!is.null(req$content$status$errorResult)){
     stop("Error in upload job: ", req$status$errors$message)
   } else {
@@ -251,13 +354,13 @@ bqr_do_upload.data.frame <- function(upload_data,
       if(wait){
         out <- bqr_wait_for_job(as.job(req$content))
       } else {
-        myMessage("Returning: BigQuery load of local data.frame Job object: ", 
+        myMessage("Returning: BigQuery load of local uploaded Job object: ", 
                   req$content$jobReference$jobId, level = 3)
         
         out <- bqr_get_job(req$content$jobReference$jobId, 
                            projectId = req$content$jobReference$projectId)
       }
-
+      
     } else {
       stop("Upload table didn't return bqr_job object when it should have.")
     }
@@ -276,7 +379,8 @@ bqr_do_upload.character <- function(upload_data,
                                     datasetId, 
                                     tableId,
                                     create,
-                                    user_schema,
+                                    writeDisposition,
+                                    schema,
                                     sourceFormat,
                                     wait, # not used
                                     autodetect,
@@ -286,10 +390,29 @@ bqr_do_upload.character <- function(upload_data,
                                     allowQuotedNewlines,
                                     fieldDelimiter){
   
+  myMessage("Uploading from Google Cloud Storage URI", level = 3)
+  
+  assert_that(
+    all(startsWith(upload_data, "gs://"))
+  )
+  
   if(length(upload_data) > 1){
     source_uri <- upload_data
   } else {
     source_uri <- list(upload_data)
+  }
+    
+  if(is.null(schema) && !autodetect){
+    stop("Must supply a data schema or use autodetect if loading from Google Cloud Storage",
+         call. = FALSE)
+  }
+  
+  if(!autodetect){
+    the_schema = list(
+      fields = schema
+    )
+  } else {
+    the_schema <- NULL
   }
   
   config <- list(
@@ -300,7 +423,9 @@ bqr_do_upload.character <- function(upload_data,
         maxBadRecords = maxBadRecords,
         sourceFormat = sourceFormat,
         createDisposition = jsonlite::unbox(create),
+        writeDisposition = jsonlite::unbox(writeDisposition),
         sourceUris = source_uri,
+        schema = the_schema,
         destinationTable = list(
           projectId = projectId,
           datasetId = datasetId,
@@ -313,49 +438,27 @@ bqr_do_upload.character <- function(upload_data,
     )
   )
   
-  ## only provide schema if autodetect is FALSE
-  if(!autodetect){
-    config <- list(
-      configuration = list(
-        load = list(
-          fieldDelimiter = fieldDelimiter,
-          nullMarker = nullMarker,
-          maxBadRecords = maxBadRecords,
-          sourceFormat = sourceFormat,
-          createDisposition = jsonlite::unbox(create),
-          sourceUris = source_uri,
-          schema = list(
-             fields = user_schema
-           ),
-          destinationTable = list(
-            projectId = projectId,
-            datasetId = datasetId,
-            tableId = tableId
-          ),
-          autodetect = autodetect,
-          allowJaggedRows = allowJaggedRows,
-          allowQuotedNewlines = allowQuotedNewlines
-        )
-      )
-    )
-  }
+  config <- rmNullObs(config)
   
   l <- 
     googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
                                    "POST",
                                    path_args = list(projects = projectId,
-                                                    jobs = "")
+                                                    jobs = ""),
+                                   data_parse_function = function(x) x
                                    )
   
   req <- l(path_arguments = list(projects = projectId, 
-                          datasets = datasetId,
-                          tableId = tableId),
-    the_body = config)
+                                 datasets = datasetId,
+                                 tableId = tableId),
+           the_body = config)
+  
+  job <- as.job(req)
   
   myMessage("Returning: BigQuery load from Google Cloud Storage Job object: ", 
-            req$content$jobReference$jobId, level = 3)
+            job$jobId, level = 3)
   
-  bqr_get_job(req$content$jobReference$jobId, projectId = req$content$jobReference$projectId)
+  job
 
 }
 

@@ -5,7 +5,7 @@
 \title{Create a Table}
 \usage{
 bqr_create_table(projectId = bqr_get_global_project(),
-  datasetId = bqr_get_global_dataset(), tableId, template_data,
+  datasetId = bqr_get_global_dataset(), tableId, template_data = NULL,
   timePartitioning = FALSE, expirationMs = 0L)
 }
 \arguments{
@@ -15,7 +15,7 @@ bqr_create_table(projectId = bqr_get_global_project(),
 
 \item{tableId}{Name of table you want.}
 
-\item{template_data}{A dataframe with the correct types of data}
+\item{template_data}{A dataframe with the correct types of data. If \code{NULL} an empty table is made.}
 
 \item{timePartitioning}{Whether to create a partioned table}
 
@@ -31,13 +31,17 @@ Create a Table
 Creates a BigQuery table.
 
 If setting \code{timePartioning} to \code{TRUE} then the table will be a 
-  \href{partioned table}{https://cloud.google.com/bigquery/docs/creating-partitioned-tables}
+  \href{https://cloud.google.com/bigquery/docs/creating-partitioned-tables}{partioned table}
+  
+If you want more advanced features for the table, create it then call \link{bqr_patch_table} with advanced configuration configured from \link{Table}
 }
 \seealso{
-Other bigQuery meta functions: \code{\link{bqr_delete_table}},
-  \code{\link{bqr_list_datasets}},
-  \code{\link{bqr_list_projects}},
+Other Table meta functions: \code{\link{Table}},
+  \code{\link{bqr_copy_table}},
+  \code{\link{bqr_delete_table}},
   \code{\link{bqr_list_tables}},
+  \code{\link{bqr_patch_table}},
   \code{\link{bqr_table_data}},
   \code{\link{bqr_table_meta}}
 }
+\concept{Table meta functions}

@@ -6,11 +6,12 @@
 \usage{
 bqr_upload_data(projectId = bqr_get_global_project(),
   datasetId = bqr_get_global_dataset(), tableId, upload_data,
-  create = c("CREATE_IF_NEEDED", "CREATE_NEVER"), overwrite = FALSE,
+  create = c("CREATE_IF_NEEDED", "CREATE_NEVER"),
+  writeDisposition = c("WRITE_TRUNCATE", "WRITE_APPEND", "WRITE_EMPTY"),
   schema = NULL, sourceFormat = c("CSV", "DATASTORE_BACKUP",
   "NEWLINE_DELIMITED_JSON", "AVRO"), wait = TRUE, autodetect = FALSE,
   nullMarker = NULL, maxBadRecords = NULL, allowJaggedRows = FALSE,
-  allowQuotedNewlines = FALSE, fieldDelimiter = ",")
+  allowQuotedNewlines = FALSE, fieldDelimiter = NULL)
 }
 \arguments{
 \item{projectId}{The BigQuery project ID.}
@@ -23,7 +24,7 @@ bqr_upload_data(projectId = bqr_get_global_project(),
 
 \item{create}{Whether to create a new table if necessary, or error if it already exists.}
 
-\item{overwrite}{If TRUE will delete any existing table and upload new data.}
+\item{writeDisposition}{How to add the data to a table.}
 
 \item{schema}{If \code{upload_data} is a Google Cloud Storage URI, supply the data schema.  For \code{CSV} a helper function is available by using \link{schema_fields} on a data sample}
 
@@ -90,7 +91,19 @@ You also need to supply a data schema.  Remember that the file should not have a
  ## a quick way to do this on the command line is:
  # "head bigfile.csv > head_bigfile.csv"
 
-
+## upload nested lists as JSON
+the_list <- list(list(col1 = "yes", col2 = "no", 
+                      col3 = list(nest1 = 1, nest2 = 3), col4 = "oh"),
+                 list(col1 = "yes2", 
+                      col2 = "n2o", col3 = list(nest1 = 5, nest2 = 7), 
+                      col4 = "oh2"), 
+                 list(col1 = "yes3", col2 = "no3", 
+                      col3 = list(nest1 = 7, nest2 = 55), col4 = "oh3"))
+   
+bqr_upload_data(datasetId = "test", 
+                tableId = "nested_list_json", 
+                upload_data = the_list, 
+                autodetect = TRUE)
 
 }
 
@@ -98,3 +111,4 @@ You also need to supply a data schema.  Remember that the file should not have a
 \seealso{
 url{https://cloud.google.com/bigquery/loading-data-post-request}
 }
+\concept{bigQuery upload functions}

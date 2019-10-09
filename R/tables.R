@@ -15,6 +15,7 @@
 #' 
 #' @export
 #' @import assertthat
+#' @family Table meta functions
 bqr_copy_table <- function(source_tableid,
                            destination_tableid,
                            source_projectid = bqr_get_global_project(),
@@ -55,6 +56,11 @@ bqr_copy_table <- function(source_tableid,
     )
   )
   
+  myMessage(sprintf("Copying table %s.%s.%s to %s.%s.%s", 
+                    source_projectid, source_datasetid, source_tableid, 
+                    destination_projectid,destination_datasetid, destination_tableid),
+            level = 3)
+  
   call_job(source_projectid, config = config)
 }
 
@@ -64,7 +70,7 @@ bqr_copy_table <- function(source_tableid,
 #' 
 #' @param projectId The BigQuery project ID
 #' @param datasetId A datasetId within projectId
-#' @param maxResults Number of results to return, default \code{1000}
+#' @param maxResults Number of results to return, default \code{-1} returns all results
 #' 
 #' @return dataframe of tables in dataset
 #' 
@@ -74,47 +80,44 @@ bqr_copy_table <- function(source_tableid,
 #'  bqr_list_tables("publicdata", "samples")
 #' }
 #' 
-#' @family bigQuery meta functions
+#' @family Table meta functions
+#' @import assertthat
+#' @importFrom googleAuthR gar_api_generator gar_api_page
 #' @export
 bqr_list_tables <- function(projectId = bqr_get_global_project(), 
                             datasetId = bqr_get_global_dataset(),
-                            maxResults = 1000){
+                            maxResults = -1){
+  
+  assert_that(is.string(projectId),
+              is.string(datasetId),
+              is.scalar(maxResults))
+  
+  # support -1 for all results
+  if(maxResults < 0){
+    maxResults=NULL
+  }
+  
+  pars <- list(maxResults = maxResults,
+               pageToken = "")
+  pars <- rmNullObs(pars)
+  
   
   check_bq_auth()
-  l <- googleAuthR::gar_api_generator("https://www.googleapis.com/bigquery/v2",
-                                      "GET",
-                                      path_args = list(projects = projectId,
-                                                       datasets = datasetId,
-                                                       tables = ""),
-                                      pars_args = list(maxResults = maxResults,
-                                                       pageToken = ""),
-                                      data_parse_function = parse_bqr_list_tables)
+  l <- gar_api_generator("https://www.googleapis.com/bigquery/v2",
+                         "GET",
+                         path_args = list(projects = projectId,
+                                          datasets = datasetId,
+                                          tables = ""),
+                         pars_args = pars,
+                         data_parse_function = parse_bqr_list_tables)
   
-  req <- l()
+  pages <- gar_api_page(l, 
+                        page_f = get_attr_nextpagetoken,
+                        page_method = "param",
+                        page_arg = "pageToken")
   
-  ## if maxResults < 1000 we are in first page
-  if(nrow(req) == maxResults){
-    return(req)
-  }
-  
-  if(!is.null(attr(req, "nextPageToken"))){
-    npt <- attr(req, "nextPageToken")
-    
-    while(!is.null(npt)){
-      myMessage("Paging through results: ", npt, level = 3)
-      more_req <- l(pars_arguments = list(pageToken = npt))
-      npt <- attr(more_req, "nextPageToken")
-      req <- rbind(req, more_req)
-      
-      ## if this batch of 10000 over what we need, just return the rows we want
-      if(nrow(req) > maxResults){
-        return(req[1:maxResults,])
-      }
-    }
-    
-  }
-  
-  req
+  Reduce(rbind, pages)
+
 }
 
 parse_bqr_list_tables <- function(x) {
@@ -148,7 +151,7 @@ parse_bqr_list_tables <- function(x) {
 #' }
 #' 
 #' 
-#' @family bigQuery meta functions
+#' @family Table meta functions
 #' @export
 bqr_table_meta <- function(projectId = bqr_get_global_project(), 
                            datasetId = bqr_get_global_dataset(), 
@@ -167,9 +170,11 @@ bqr_table_meta <- function(projectId = bqr_get_global_project(),
                                                        tables = tableId),
                                       data_parse_function = f)
   
-  l(path_arguments = list(projects = projectId, 
+  res <- l(path_arguments = list(projects = projectId, 
                           datasets = datasetId, 
                           tables = tableId))
+  
+  as.table(res)
   
 }
 
@@ -184,7 +189,7 @@ bqr_table_meta <- function(projectId = bqr_get_global_project(),
 #' 
 #' This won't work with nested datasets, for that use \link{bqr_query} as that flattens results.
 #' 
-#' @family bigQuery meta functions
+#' @family Table meta functions
 #' @export
 bqr_table_data <- function(projectId = bqr_get_global_project(), 
                            datasetId = bqr_get_global_dataset(), 
@@ -213,7 +218,7 @@ bqr_table_data <- function(projectId = bqr_get_global_project(),
 #' @param projectId The BigQuery project ID.
 #' @param datasetId A datasetId within projectId.
 #' @param tableId Name of table you want.
-#' @param template_data A dataframe with the correct types of data
+#' @param template_data A dataframe with the correct types of data. If \code{NULL} an empty table is made.
 #' @param timePartitioning Whether to create a partioned table
 #' @param expirationMs If a partioned table, whether to have an expiration time on the data. The default \code{0} is no expiration.
 #' 
@@ -224,14 +229,16 @@ bqr_table_data <- function(projectId = bqr_get_global_project(),
 #' Creates a BigQuery table.
 #' 
 #' If setting \code{timePartioning} to \code{TRUE} then the table will be a 
-#'   \href{partioned table}{https://cloud.google.com/bigquery/docs/creating-partitioned-tables}
+#'   \href{https://cloud.google.com/bigquery/docs/creating-partitioned-tables}{partioned table}
+#'   
+#' If you want more advanced features for the table, create it then call \link{bqr_patch_table} with advanced configuration configured from \link{Table}
 #' 
-#' @family bigQuery meta functions
+#' @family Table meta functions
 #' @export
 bqr_create_table <- function(projectId = bqr_get_global_project(), 
                              datasetId = bqr_get_global_dataset(), 
                              tableId, 
-                             template_data,
+                             template_data = NULL,
                              timePartitioning = FALSE,
                              expirationMs = 0L){
   check_bq_auth()
@@ -248,10 +255,16 @@ bqr_create_table <- function(projectId = bqr_get_global_project(),
     timeP <- list(type = "DAY", expirationMs = expirationMs)
   }
   
+  if(!is.null(template_data)){
+    schema <- list(
+      fields = schema_fields(template_data)
+    )
+  } else {
+    schema <- NULL
+  }
+  
   config <- list(
-        schema = list(
-          fields = schema_fields(template_data)
-        ),
+        schema = schema,
         tableReference = list(
           projectId = projectId,
           datasetId = datasetId,
@@ -282,6 +295,41 @@ bqr_create_table <- function(projectId = bqr_get_global_project(),
   
 }
 
+#' Update a Table
+#' 
+#' @param Table A Table object as created by \link{Table}
+#' 
+#' @description 
+#'  This uses PATCH semantics to alter an existing table.  
+#'  You need to create the Table object first to pass in using \link{Table} 
+#'which will be transformed to JSON
+#' 
+#' @export
+#' @import assertthat
+#' @importFrom googleAuthR gar_api_generator
+#' @seealso \href{https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#resource}{Definition of tables}
+#' @family Table meta functions
+bqr_patch_table <- function(Table){
+  assert_that(
+    is.table(Table)
+  )
+  
+  projectId <- Table$tableReference$projectId
+  datasetId <- Table$tableReference$datasetId
+  tableId <- Table$tableReference$tableId
+  
+  myMessage("Patching ", tableId, level = 3)
+  
+  the_url <- sprintf("https://www.googleapis.com/bigquery/v2/projects/%s/datasets/%s/tables/%s",
+                     projectId, datasetId, tableId)
+  
+  call_api <- gar_api_generator(the_url, "PATCH", data_parse_function = function(x) x)
+  
+  res <- call_api(the_body = Table)
+  
+  as.table(res)
+  
+}
 
 #' Delete a Table
 #' 
@@ -295,7 +343,7 @@ bqr_create_table <- function(projectId = bqr_get_global_project(),
 #' 
 #' Deletes a BigQuery table
 #' 
-#' @family bigQuery meta functions
+#' @family Table meta functions
 #' @export
 bqr_delete_table <- function(projectId = bqr_get_global_project(), 
                              datasetId = bqr_get_global_dataset(), 
@@ -324,4 +372,92 @@ bqr_delete_table <- function(projectId = bqr_get_global_project(),
   
   out
   
+}
+
+
+#' Table Object
+#' 
+#' Configure table objects as documented by 
+#' the \href{https://cloud.google.com/bigquery/docs/reference/rest/v2/tables}{Google docs for Table objects}
+#' 
+#' @param tableId tableId 
+#' @param projectId projectId
+#' @param datasetId datasetId
+#' @param clustering [Beta] Clustering specification for the table
+#' @param description [Optional] A user-friendly description of this table
+#' @param encryptionConfiguration Custom encryption configuration (e
+#' @param expirationTime [Optional] The time when this table expires, in milliseconds since the epoch
+#' @param friendlyName [Optional] A descriptive name for this table
+#' @param labels The labels associated with this table - a named list of key = value
+#' @param materializedView [Optional] Materialized view definition
+#' @param rangePartitioning [TrustedTester] Range partitioning specification for this table
+#' @param requirePartitionFilter [Beta] [Optional] If set to true, queries over this table require a partition filter that can be used for partition elimination to be specified
+#' @param schema [Optional] Describes the schema of this table
+#' @param timePartitioning Time-based partitioning specification for this table
+#' @param view [Optional] The view definition
+#' 
+#' @return Table object
+#' 
+#' @details 
+#' 
+#' A table object to be used within \link{bqr_patch_table}
+#' 
+#' @family Table meta functions
+#' @export
+#' @import assertthat
+Table <- function(tableId,
+                  projectId = bqr_get_global_project(), 
+                  datasetId = bqr_get_global_dataset(), 
+                  clustering = NULL, 
+                  description = NULL, 
+                  encryptionConfiguration = NULL, 
+                  expirationTime = NULL, 
+                  friendlyName = NULL, 
+                  labels = NULL, 
+                  materializedView = NULL, 
+                  rangePartitioning = NULL, 
+                  requirePartitionFilter = NULL, 
+                  schema = NULL, 
+                  timePartitioning = NULL, 
+                  view = NULL) {
+  assert_that(
+    is.string(projectId),
+    is.string(datasetId),
+    is.string(tableId)
+    # is.string(friendlyName),
+    # is.string(description),
+    # is.list(labels),
+    # is.list(timePartitioning)
+    # is.flag(requirePartitionFilter)
+  )
+  
+  tt <- list(
+    tableReference = list(projectId = projectId,
+                          datasetId = datasetId,
+                          tableId = tableId),
+    clustering = clustering, 
+    description = description, 
+    encryptionConfiguration = encryptionConfiguration, 
+    expirationTime = expirationTime,
+    friendlyName = friendlyName, 
+    labels = labels, 
+    materializedView = materializedView, 
+    rangePartitioning = rangePartitioning, 
+    requirePartitionFilter = NULL, 
+    schema = schema,
+    timePartitioning = timePartitioning, 
+    view = view)
+  
+  tt <- rmNullObs(tt)
+  
+  structure(tt, class = "gar_Table")
+  
+}
+
+is.table <- function(x){
+  inherits(x, "gar_Table")
+}
+
+as.table <- function(x){
+  structure(x, class = "gar_Table")
 }
